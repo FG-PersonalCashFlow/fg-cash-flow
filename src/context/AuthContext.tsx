@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
-import { auth } from '../lib/firebase'
+import { auth, configError } from '../lib/firebase'
 
 interface AuthContextValue {
   user: User | null
@@ -11,6 +11,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({ user: null, loading: true })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (configError) throw configError
+
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 

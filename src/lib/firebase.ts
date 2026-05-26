@@ -11,8 +11,15 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-const app = initializeApp(firebaseConfig)
+const missingKeys = (Object.keys(firebaseConfig) as (keyof typeof firebaseConfig)[])
+  .filter((k) => !firebaseConfig[k])
 
-export const auth = getAuth(app)
-export const db = getFirestore(app)
+export const configError = missingKeys.length
+  ? new Error(`Missing Firebase config keys: ${missingKeys.join(', ')}. Set VITE_FIREBASE_* environment variables.`)
+  : null
+
+const app = configError ? null : initializeApp(firebaseConfig)
+
+export const auth = app ? getAuth(app) : null!
+export const db = app ? getFirestore(app) : null!
 export const googleProvider = new GoogleAuthProvider()
