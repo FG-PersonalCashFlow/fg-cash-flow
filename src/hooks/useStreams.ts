@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -19,17 +20,26 @@ function streamsRef(uid: string) {
 export function useStreams(uid: string | undefined) {
   const [streams, setStreams] = useState<Stream[]>([])
   const [loading, setLoading] = useState(true)
+  const [writeError, setWriteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!uid) return
-    return onSnapshot(streamsRef(uid), (snap) => {
-      if (snap.empty) {
-        seedDefaults(uid)
-      } else {
-        setStreams(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Stream)))
-      }
-      setLoading(false)
-    })
+    return onSnapshot(
+      streamsRef(uid),
+      (snap) => {
+        if (snap.empty) {
+          seedDefaults(uid)
+        } else {
+          setStreams(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Stream)))
+        }
+        setLoading(false)
+      },
+      (err) => {
+        console.error('Firestore read error:', err)
+        setWriteError(`Read failed: ${err.message}`)
+        setLoading(false)
+      },
+    )
   }, [uid])
 
   async function seedDefaults(uid: string) {
@@ -44,18 +54,42 @@ export function useStreams(uid: string | undefined) {
   }
 
   async function upsertStream(uid: string, stream: Omit<Stream, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) {
+    setWriteError(null)
     const now = Date.now()
-    if (stream.id) {
-      const { id, ...data } = stream
-      await updateDoc(doc(streamsRef(uid), id), { ...data, updatedAt: now })
-    } else {
-      const ref = doc(streamsRef(uid))
-      await setDoc(ref, { ...stream, createdAt: now, updatedAt: now })
+    try {
+      if (stream.id) {
+        const { id, notes, ...rest } = stream
+        await updateDoc(doc(streamsRef(uid), id), {
+          ...rest,
+          notes: notes ?? deleteField(),
+          updatedAt: now,
+        })
+      } else {
+        const { notes, ...rest } = stream
+        const ref = doc(streamsRef(uid))
+        await setDoc(ref, {
+          ...rest,
+          ...(notes ? { notes } : {}),
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('Firestore write error:', err)
+      setWriteError(`Save failed: ${msg}`)
     }
   }
 
   async function removeStream(uid: string, id: string) {
-    await deleteDoc(doc(streamsRef(uid), id))
+    setWriteError(null)
+    try {
+      await deleteDoc(doc(streamsRef(uid), id))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('Firestore delete error:', err)
+      setWriteError(`Delete failed: ${msg}`)
+    }
   }
 
   const income = streams.filter((s) => s.type === 'income' && s.active)
@@ -71,6 +105,7 @@ export function useStreams(uid: string | undefined) {
     income,
     expenses,
     loading,
+    writeError,
     summary: { totalMonthlyIncome, totalMonthlyExpenses, netMonthlyCashFlow, annualProjection },
     upsertStream: (s: Parameters<typeof upsertStream>[1]) => upsertStream(uid!, s),
     removeStream: (id: string) => removeStream(uid!, id),

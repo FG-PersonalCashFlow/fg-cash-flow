@@ -10,7 +10,7 @@ import type { Stream, StreamType } from '../types/cashflow'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { income, expenses, summary, loading, upsertStream, removeStream } = useStreams(user?.uid)
+  const { income, expenses, summary, loading, writeError, upsertStream, removeStream } = useStreams(user?.uid)
   const [editing, setEditing] = useState<Stream | null>(null)
   const [adding, setAdding] = useState<StreamType | null>(null)
 
@@ -41,6 +41,11 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {writeError && (
+          <div className="mb-4 bg-rose-900/40 border border-rose-700 text-rose-300 text-sm rounded-xl px-4 py-3">
+            {writeError} — check your <a href="https://console.firebase.google.com" target="_blank" className="underline">Firestore security rules</a>.
+          </div>
+        )}
         <SummaryBar {...summary} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
