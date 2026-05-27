@@ -65,7 +65,7 @@ export function useStreams(uid: string | undefined) {
           updatedAt: now,
         })
       } else {
-        const { notes, ...rest } = stream
+        const { id: _id, notes, ...rest } = stream
         const ref = doc(streamsRef(uid))
         await setDoc(ref, {
           ...rest,
